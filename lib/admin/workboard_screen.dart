@@ -9,7 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:playbus/admin/home_screen.dart';
 import 'package:playbus/admin/profile_screen.dart';
 import 'package:playbus/admin/gps_screen.dart';
-import '../components/workboard_wallPosts.dart';
+import '../components/like_button.dart';
 import '../components/my_textfield.dart';
 import 'friendboard_screen.dart';
 
@@ -206,8 +206,8 @@ class _boardPageState extends State<workboardPage> {
                     itemCount: snapshot.data!.docs.length,
                     itemBuilder: (context, index) {
                       final post = snapshot.data!.docs[index];
-                      return aalpost(
-                        messsage: post['Message'],
+                      return AalPost(
+                        message: post['Message'],
                         user: post['UserEmail'],
                         postId: post.id,
                         likes: List<String>.from(post['Likes'] ?? []),
@@ -246,6 +246,165 @@ class _boardPageState extends State<workboardPage> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AalPost extends StatefulWidget {
+  final String message;
+  final String user;
+  final String postId;
+  final List<String> likes;
+
+  const AalPost({
+    Key? key,
+    required this.message,
+    required this.user,
+    required this.postId,
+    required this.likes,
+  }) : super(key: key);
+
+  @override
+  State<AalPost> createState() => _AalPostState();
+}
+
+class _AalPostState extends State<AalPost> {
+  final currentUser = FirebaseAuth.instance.currentUser!;
+  bool isLiked = false;
+  List<Map<String, dynamic>> comments = [];
+
+  void postComment(String commentText) {
+    if (commentText.isNotEmpty) {
+      DocumentReference postRef =
+      FirebaseFirestore.instance.collection("work Posts").doc(widget.postId);
+
+      try {
+        postRef.update({
+          'Comments': FieldValue.arrayUnion([
+            {
+              'user': currentUser.email,
+              'commentText': commentText,
+              'timestamp': Timestamp.now(),
+            }
+          ])
+        });
+      } catch (e) {
+        print('댓글 업데이트 오류: $e');
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    isLiked = widget.likes.contains(currentUser.email);
+  }
+
+  void toggleLike() {
+    setState(() {
+      isLiked = !isLiked;
+    });
+
+    DocumentReference postRef =
+    FirebaseFirestore.instance.collection("work Posts").doc(widget.postId);
+
+    if (isLiked) {
+      postRef.update({
+        'Likes': FieldValue.arrayUnion([currentUser.email])
+      });
+    } else {
+      postRef.update({
+        'Likes': FieldValue.arrayRemove([currentUser.email])
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      margin: EdgeInsets.only(top: 25, left: 25, right: 25),
+      padding: EdgeInsets.all(25),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: 5),
+              LikeButton(isLiked: isLiked, onTap: toggleLike),
+              const SizedBox(width: 5),
+              Text(
+                widget.likes.length.toString(),
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(width: 20),
+              Text(
+                widget.user,
+                style: TextStyle(color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(widget.message),
+          const SizedBox(height: 20),
+          InkWell(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  TextEditingController commentController = TextEditingController();
+                  return AlertDialog(
+                    title: Text('댓글 입력'),
+                    content: TextField(
+                      controller: commentController,
+                      decoration: InputDecoration(hintText: '댓글을 입력하세요'),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: Text('취소'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // 댓글을 게시하고 Firebase를 업데이트합니다.
+                          postComment(commentController.text);
+                          // 댓글 목록을 업데이트하고 화면을 다시 그립니다.
+                          setState(() {
+                            comments.add({
+                              'user': currentUser.email,
+                              'commentText': commentController.text,
+                              'timestamp': Timestamp.now(),
+                            });
+                          });
+                          Navigator.pop(context);
+                        },
+                        child: Text('입력'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+            child: Icon(
+              Icons.comment,
+              color: Colors.grey,
+            ),
+          ),
+          // 댓글 목록을 표시하는 부분 추가
+          Column(
+            children: comments.map((comment) {
+              return ListTile(
+                title: Text(comment['user']),
+                subtitle: Text(comment['commentText']),
+              );
+            }).toList(),
           ),
         ],
       ),

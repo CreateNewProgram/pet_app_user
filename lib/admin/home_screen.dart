@@ -83,6 +83,10 @@ class _MainScreenState extends State<MainScreen> {
                   );
                   break;
                 case 2:
+                  Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PetInfoForm()),
+                  );
                   break;
                 case 3:
                   Navigator.push(
